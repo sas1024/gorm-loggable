@@ -23,9 +23,9 @@ func Register(db *gorm.DB) (LoggablePlugin, error) {
 		return nil, err
 	}
 	callback := db.Callback()
-	callback.Create().After("gorm:after_create").Register("changelog:create", addCreated)
-	callback.Update().After("gorm:after_update").Register("changelog:update", addUpdated)
-	callback.Delete().After("gorm:after_delete").Register("changelog:delete", addDeleted)
+	callback.Create().After("gorm:after_create").Register("loggable:create", addCreated)
+	callback.Update().After("gorm:after_update").Register("loggable:update", addUpdated)
+	callback.Delete().After("gorm:after_delete").Register("loggable:delete", addDeleted)
 	return &loggablePlugin{db: db}, nil
 }
 
@@ -50,7 +50,7 @@ func getUser(db *gorm.DB) string {
 	return user.(string)
 }
 
-func addRecord(db *gorm.DB, objectId string, object interface{}, action string) error {
+func addRecord(db *gorm.DB, objectId string, objectType string, object interface{}, action string) error {
 	var jsonObject JSONB
 	j, err := json.Marshal(object)
 	if err != nil {
@@ -61,11 +61,12 @@ func addRecord(db *gorm.DB, objectId string, object interface{}, action string) 
 		return err
 	}
 	cl := ChangeLog{
-		ID:        uuid.NewV4().String(),
-		ChangedBy: getUser(db),
-		Action:    action,
-		ObjectID:  objectId,
-		Object:    jsonObject,
+		ID:         uuid.NewV4().String(),
+		ChangedBy:  getUser(db),
+		Action:     action,
+		ObjectID:   objectId,
+		ObjectType: objectType,
+		Object:     jsonObject,
 	}
 	err = db.Create(&cl).Error
 	if err != nil {
@@ -84,16 +85,16 @@ func isLoggable(scope *gorm.Scope) (isLoggable bool) {
 
 func addCreated(scope *gorm.Scope) {
 	if isLoggable(scope) {
-		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.Value, "create")
+		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.GetModelStruct().ModelType.Name(), scope.Value, "create")
 	}
 }
 func addUpdated(scope *gorm.Scope) {
 	if isLoggable(scope) {
-		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.Value, "update")
+		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.GetModelStruct().ModelType.Name(), scope.Value, "update")
 	}
 }
 func addDeleted(scope *gorm.Scope) {
 	if isLoggable(scope) {
-		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.Value, "delete")
+		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.GetModelStruct().ModelType.Name(), scope.Value, "delete")
 	}
 }
