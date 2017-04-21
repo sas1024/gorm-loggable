@@ -8,6 +8,48 @@ import (
 	"github.com/satori/go.uuid"
 )
 
+type LoggablePlugin interface {
+	SetUser(user string)
+	GetRecords(objectId string) ([]*ChangeLog, error)
+}
+
+type loggablePlugin struct {
+	db *gorm.DB
+}
+
+func Register(db *gorm.DB) (LoggablePlugin, error) {
+	err := db.AutoMigrate(&ChangeLog{}).Error
+	if err != nil {
+		return nil, err
+	}
+	callback := db.Callback()
+	callback.Create().After("gorm:after_create").Register("changelog:create", addCreated)
+	callback.Update().After("gorm:after_update").Register("changelog:update", addUpdated)
+	callback.Delete().After("gorm:after_delete").Register("changelog:delete", addDeleted)
+	return &loggablePlugin{db: db}, nil
+}
+
+func (r *loggablePlugin) GetRecords(objectId string) ([]*ChangeLog, error) {
+	var changes []*ChangeLog
+	err := r.db.Find(&changes).Where("object_id = ?", objectId).Error
+	if err != nil {
+		return nil, err
+	}
+	return changes, nil
+}
+
+func (r *loggablePlugin) SetUser(user string) {
+	r.db.InstantSet("loggable:user", user)
+}
+
+func getUser(db *gorm.DB) string {
+	user, ok := db.Get("loggable:user")
+	if !ok {
+		return ""
+	}
+	return user.(string)
+}
+
 func addRecord(db *gorm.DB, objectId string, object interface{}, action string) error {
 	var jsonObject JSONB
 	j, err := json.Marshal(object)
@@ -29,39 +71,6 @@ func addRecord(db *gorm.DB, objectId string, object interface{}, action string) 
 	if err != nil {
 		return err
 	}
-	return nil
-}
-
-func GetRecords(db *gorm.DB, objectId string) ([]ChangeLog, error) {
-	var changes []ChangeLog
-	err := db.Find(&changes).Where("object_id = ?", objectId).Error
-	if err != nil {
-		return []ChangeLog{}, err
-	}
-	return changes, nil
-}
-
-func SetUser(db *gorm.DB, userId string) {
-	db.InstantSet("loggable:userId", userId)
-}
-
-func getUser(db *gorm.DB) string {
-	userId, ok := db.Get("loggable:userId")
-	if !ok {
-		return ""
-	}
-	return userId.(string)
-}
-
-func Register(db *gorm.DB) error {
-	err := db.AutoMigrate(&ChangeLog{}).Error
-	if err != nil {
-		return err
-	}
-	callback := db.Callback()
-	callback.Create().After("gorm:after_create").Register("changelog:create", addCreated)
-	callback.Update().After("gorm:after_update").Register("changelog:update", addUpdated)
-	callback.Delete().After("gorm:after_delete").Register("changelog:delete", addDeleted)
 	return nil
 }
 
