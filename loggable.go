@@ -18,14 +18,13 @@ type ChangeLog struct {
 }
 
 type loggableInterface interface {
-	GetLoggableStubField() string
+	stubMethod() error
 }
 type LoggableModel struct {
-	LoggableStubField string `gorm:"-"`
 }
 
-func (model LoggableModel) GetLoggableStubField() string {
-	return model.LoggableStubField
+func (model LoggableModel) stubMethod() error {
+	return nil
 }
 
 type JSONB []byte
