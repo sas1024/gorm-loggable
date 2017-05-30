@@ -3,10 +3,13 @@ package loggable
 import (
 	"encoding/json"
 	"reflect"
+	"sync"
 
 	"github.com/jinzhu/gorm"
 	"github.com/satori/go.uuid"
 )
+
+var lock = sync.RWMutex{}
 
 type LoggablePlugin interface {
 	SetUser(user string)
@@ -39,10 +42,14 @@ func (r *loggablePlugin) GetRecords(objectId string) ([]*ChangeLog, error) {
 }
 
 func (r *loggablePlugin) SetUser(user string) {
+	lock.RLock()
+	defer lock.RUnlock()
 	r.db.InstantSet("loggable:user", user)
 }
 
 func getUser(db *gorm.DB) string {
+	lock.RLock()
+	defer lock.RUnlock()
 	user, ok := db.Get("loggable:user")
 	if !ok {
 		return ""
