@@ -8,9 +8,9 @@ import (
 )
 
 type ChangeLog struct {
-	ID         string `gorm:"type:uuid;primary_key;"`
-	CreatedAt  time.Time
-	ChangedBy  string `gorm:"index"`
+	ID         string    `gorm:"type:uuid;primary_key;"`
+	CreatedAt  time.Time `sql:"DEFAULT:current_timestamp"`
+	ChangedBy  string    `gorm:"index"`
 	Action     string
 	ObjectID   string `gorm:"index"`
 	ObjectType string `gorm:"index"`

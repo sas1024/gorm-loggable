@@ -9,15 +9,14 @@ import (
 	"github.com/satori/go.uuid"
 )
 
-var lock = sync.RWMutex{}
-
 type LoggablePlugin interface {
-	SetUser(user string)
+	SetUser(user string) *gorm.DB
 	GetRecords(objectId string) ([]*ChangeLog, error)
 }
 
 type loggablePlugin struct {
 	db *gorm.DB
+	mu sync.Mutex
 }
 
 func Register(db *gorm.DB) (LoggablePlugin, error) {
@@ -25,11 +24,12 @@ func Register(db *gorm.DB) (LoggablePlugin, error) {
 	if err != nil {
 		return nil, err
 	}
+	r := &loggablePlugin{db: db}
 	callback := db.Callback()
-	callback.Create().After("gorm:after_create").Register("loggable:create", addCreated)
-	callback.Update().After("gorm:after_update").Register("loggable:update", addUpdated)
-	callback.Delete().After("gorm:after_delete").Register("loggable:delete", addDeleted)
-	return &loggablePlugin{db: db}, nil
+	callback.Create().After("gorm:after_create").Register("loggable:create", r.addCreated)
+	callback.Update().After("gorm:after_update").Register("loggable:update", r.addUpdated)
+	callback.Delete().After("gorm:after_delete").Register("loggable:delete", r.addDeleted)
+	return r, nil
 }
 
 func (r *loggablePlugin) GetRecords(objectId string) ([]*ChangeLog, error) {
@@ -41,25 +41,16 @@ func (r *loggablePlugin) GetRecords(objectId string) ([]*ChangeLog, error) {
 	return changes, nil
 }
 
-func (r *loggablePlugin) SetUser(user string) {
-	lock.RLock()
-	defer lock.RUnlock()
-	r.db.InstantSet("loggable:user", user)
+func (r *loggablePlugin) SetUser(user string) *gorm.DB {
+	r.mu.Lock()
+	db := r.db.Set("loggable:user", user)
+	r.mu.Unlock()
+	return db
 }
 
-func getUser(db *gorm.DB) string {
-	lock.RLock()
-	defer lock.RUnlock()
-	user, ok := db.Get("loggable:user")
-	if !ok {
-		return ""
-	}
-	return user.(string)
-}
-
-func addRecord(db *gorm.DB, objectId string, objectType string, object interface{}, action string) error {
+func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
 	var jsonObject JSONB
-	j, err := json.Marshal(object)
+	j, err := json.Marshal(scope.Value)
 	if err != nil {
 		return err
 	}
@@ -67,15 +58,20 @@ func addRecord(db *gorm.DB, objectId string, objectType string, object interface
 	if err != nil {
 		return err
 	}
+	user, ok := scope.DB().Get("loggable:user")
+	if !ok {
+		user = ""
+	}
+
 	cl := ChangeLog{
 		ID:         uuid.NewV4().String(),
-		ChangedBy:  getUser(db),
+		ChangedBy:  user.(string),
 		Action:     action,
-		ObjectID:   objectId,
-		ObjectType: objectType,
+		ObjectID:   scope.PrimaryKeyValue().(string),
+		ObjectType: scope.GetModelStruct().ModelType.Name(),
 		Object:     jsonObject,
 	}
-	err = db.Create(&cl).Error
+	err = scope.DB().Create(&cl).Error
 	if err != nil {
 		return err
 	}
@@ -90,18 +86,18 @@ func isLoggable(scope *gorm.Scope) (isLoggable bool) {
 	return
 }
 
-func addCreated(scope *gorm.Scope) {
+func (r *loggablePlugin) addCreated(scope *gorm.Scope) {
 	if isLoggable(scope) {
-		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.GetModelStruct().ModelType.Name(), scope.Value, "create")
+		r.addRecord(scope, "create")
 	}
 }
-func addUpdated(scope *gorm.Scope) {
+func (r *loggablePlugin) addUpdated(scope *gorm.Scope) {
 	if isLoggable(scope) {
-		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.GetModelStruct().ModelType.Name(), scope.Value, "update")
+		r.addRecord(scope, "update")
 	}
 }
-func addDeleted(scope *gorm.Scope) {
+func (r *loggablePlugin) addDeleted(scope *gorm.Scope) {
 	if isLoggable(scope) {
-		addRecord(scope.DB(), scope.PrimaryKeyValue().(string), scope.GetModelStruct().ModelType.Name(), scope.Value, "delete")
+		r.addRecord(scope, "delete")
 	}
 }
