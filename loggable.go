@@ -8,18 +8,20 @@ import (
 )
 
 type ChangeLog struct {
-	ID         string    `gorm:"type:uuid;primary_key;"`
-	CreatedAt  time.Time `sql:"DEFAULT:current_timestamp"`
-	ChangedBy  string    `gorm:"index"`
-	Action     string
-	ObjectID   string `gorm:"index"`
-	ObjectType string `gorm:"index"`
-	Object     JSONB  `sql:"type:JSONB"`
+	ID          string    `gorm:"type:uuid;primary_key;"`
+	CreatedAt   time.Time `sql:"DEFAULT:current_timestamp"`
+	ChangedBy   string    `gorm:"index"`
+	ChangedFrom string    `gorm:"index"`
+	Action      string
+	ObjectID    string `gorm:"index"`
+	ObjectType  string `gorm:"index"`
+	Object      JSONB  `sql:"type:JSONB"`
 }
 
 type loggableInterface interface {
 	stubMethod() error
 }
+
 type LoggableModel struct {
 }
 

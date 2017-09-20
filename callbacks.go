@@ -11,6 +11,7 @@ import (
 
 type LoggablePlugin interface {
 	SetUser(user string) *gorm.DB
+	SetFrom(from string) *gorm.DB
 	GetRecords(objectId string) ([]*ChangeLog, error)
 }
 
@@ -48,6 +49,13 @@ func (r *loggablePlugin) SetUser(user string) *gorm.DB {
 	return db
 }
 
+func (r *loggablePlugin) SetFrom(from string) *gorm.DB {
+	r.mu.Lock()
+	db := r.db.Set("loggable:from", from)
+	r.mu.Unlock()
+	return db
+}
+
 func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
 	var jsonObject JSONB
 	j, err := json.Marshal(scope.Value)
@@ -62,14 +70,19 @@ func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
 	if !ok {
 		user = ""
 	}
+	from, ok := scope.DB().Get("loggable:from")
+	if !ok {
+		from = ""
+	}
 
 	cl := ChangeLog{
-		ID:         uuid.NewV4().String(),
-		ChangedBy:  user.(string),
-		Action:     action,
-		ObjectID:   scope.PrimaryKeyValue().(string),
-		ObjectType: scope.GetModelStruct().ModelType.Name(),
-		Object:     jsonObject,
+		ID:          uuid.NewV4().String(),
+		ChangedBy:   user.(string),
+		ChangedFrom: from.(string),
+		Action:      action,
+		ObjectID:    scope.PrimaryKeyValue().(string),
+		ObjectType:  scope.GetModelStruct().ModelType.Name(),
+		Object:      jsonObject,
 	}
 	err = scope.DB().Create(&cl).Error
 	if err != nil {
@@ -91,11 +104,13 @@ func (r *loggablePlugin) addCreated(scope *gorm.Scope) {
 		r.addRecord(scope, "create")
 	}
 }
+
 func (r *loggablePlugin) addUpdated(scope *gorm.Scope) {
 	if isLoggable(scope) {
 		r.addRecord(scope, "update")
 	}
 }
+
 func (r *loggablePlugin) addDeleted(scope *gorm.Scope) {
 	if isLoggable(scope) {
 		r.addRecord(scope, "delete")
