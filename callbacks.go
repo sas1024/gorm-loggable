@@ -10,8 +10,11 @@ import (
 )
 
 type LoggablePlugin interface {
+	// Deprecated: Use SetUserAndWhere instead.
 	SetUser(user string) *gorm.DB
-	SetFrom(from string) *gorm.DB
+	// Deprecated: Use SetUserAndWhere instead.
+	SetWhere(from string) *gorm.DB
+	SetUserAndWhere(user, where string) *gorm.DB
 	GetRecords(objectId string) ([]*ChangeLog, error)
 }
 
@@ -42,6 +45,7 @@ func (r *loggablePlugin) GetRecords(objectId string) ([]*ChangeLog, error) {
 	return changes, nil
 }
 
+// Deprecated: Use SetUserAndWhere instead.
 func (r *loggablePlugin) SetUser(user string) *gorm.DB {
 	r.mu.Lock()
 	db := r.db.Set("loggable:user", user)
@@ -49,11 +53,18 @@ func (r *loggablePlugin) SetUser(user string) *gorm.DB {
 	return db
 }
 
-func (r *loggablePlugin) SetFrom(from string) *gorm.DB {
+// Deprecated: Use SetUserAndWhere instead.
+func (r *loggablePlugin) SetWhere(where string) *gorm.DB {
 	r.mu.Lock()
-	db := r.db.Set("loggable:from", from)
+	db := r.db.Set("loggable:where", where)
 	r.mu.Unlock()
 	return db
+}
+
+func (r *loggablePlugin) SetUserAndWhere(user, where string) *gorm.DB {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.db.Set("loggable:user", user).Set("loggable:where", where)
 }
 
 func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
@@ -70,19 +81,19 @@ func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
 	if !ok {
 		user = ""
 	}
-	from, ok := scope.DB().Get("loggable:from")
+	where, ok := scope.DB().Get("loggable:where")
 	if !ok {
-		from = ""
+		where = ""
 	}
 
 	cl := ChangeLog{
-		ID:          uuid.NewV4().String(),
-		ChangedBy:   user.(string),
-		ChangedFrom: from.(string),
-		Action:      action,
-		ObjectID:    scope.PrimaryKeyValue().(string),
-		ObjectType:  scope.GetModelStruct().ModelType.Name(),
-		Object:      jsonObject,
+		ID:           uuid.NewV4().String(),
+		ChangedBy:    user.(string),
+		ChangedWhere: where.(string),
+		Action:       action,
+		ObjectID:     scope.PrimaryKeyValue().(string),
+		ObjectType:   scope.GetModelStruct().ModelType.Name(),
+		Object:       jsonObject,
 	}
 	err = scope.DB().Create(&cl).Error
 	if err != nil {
