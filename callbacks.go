@@ -18,17 +18,24 @@ type LoggablePlugin interface {
 	GetRecords(objectId string) ([]*ChangeLog, error)
 }
 
-type loggablePlugin struct {
-	db *gorm.DB
-	mu sync.Mutex
+type Option func(options *options)
+
+type plugin struct {
+	db   *gorm.DB
+	mu   sync.Mutex
+	opts options
 }
 
-func Register(db *gorm.DB) (LoggablePlugin, error) {
+func Register(db *gorm.DB, opts ...Option) (LoggablePlugin, error) {
 	err := db.AutoMigrate(&ChangeLog{}).Error
 	if err != nil {
 		return nil, err
 	}
-	r := &loggablePlugin{db: db}
+	o := options{}
+	for _, option := range opts {
+		option(&o)
+	}
+	r := &plugin{db: db, opts: o}
 	callback := db.Callback()
 	callback.Create().After("gorm:after_create").Register("loggable:create", r.addCreated)
 	callback.Update().After("gorm:after_update").Register("loggable:update", r.addUpdated)
@@ -36,17 +43,18 @@ func Register(db *gorm.DB) (LoggablePlugin, error) {
 	return r, nil
 }
 
-func (r *loggablePlugin) GetRecords(objectId string) ([]*ChangeLog, error) {
+func (r *plugin) GetRecords(objectId string) ([]*ChangeLog, error) {
 	var changes []*ChangeLog
-	err := r.db.Find(&changes).Where("object_id = ?", objectId).Error
-	if err != nil {
-		return nil, err
-	}
-	return changes, nil
+	return changes, r.db.Where("object_id = ?", objectId).Find(&changes).Error
+}
+
+func (r *plugin) getLastRecord(objectId string) (*ChangeLog, error) {
+	var change ChangeLog
+	return &change, r.db.Where("object_id = ?", objectId).Order("created_at DESC").Limit(1).Find(&change).Error
 }
 
 // Deprecated: Use SetUserAndWhere instead.
-func (r *loggablePlugin) SetUser(user string) *gorm.DB {
+func (r *plugin) SetUser(user string) *gorm.DB {
 	r.mu.Lock()
 	db := r.db.Set("loggable:user", user)
 	r.mu.Unlock()
@@ -54,20 +62,20 @@ func (r *loggablePlugin) SetUser(user string) *gorm.DB {
 }
 
 // Deprecated: Use SetUserAndWhere instead.
-func (r *loggablePlugin) SetWhere(where string) *gorm.DB {
+func (r *plugin) SetWhere(where string) *gorm.DB {
 	r.mu.Lock()
 	db := r.db.Set("loggable:where", where)
 	r.mu.Unlock()
 	return db
 }
 
-func (r *loggablePlugin) SetUserAndWhere(user, where string) *gorm.DB {
+func (r *plugin) SetUserAndWhere(user, where string) *gorm.DB {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.db.Set("loggable:user", user).Set("loggable:where", where)
 }
 
-func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
+func (r *plugin) addRecord(scope *gorm.Scope, action string) error {
 	var jsonObject JSONB
 	j, err := json.Marshal(scope.Value)
 	if err != nil {
@@ -77,14 +85,7 @@ func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
 	if err != nil {
 		return err
 	}
-	user, ok := scope.DB().Get("loggable:user")
-	if !ok {
-		user = ""
-	}
-	where, ok := scope.DB().Get("loggable:where")
-	if !ok {
-		where = ""
-	}
+	user, where := getUserAndWhere(scope)
 
 	cl := ChangeLog{
 		ID:           uuid.NewV4().String(),
@@ -95,11 +96,19 @@ func (r *loggablePlugin) addRecord(scope *gorm.Scope, action string) error {
 		ObjectType:   scope.GetModelStruct().ModelType.Name(),
 		Object:       jsonObject,
 	}
-	err = scope.DB().Create(&cl).Error
-	if err != nil {
-		return err
+	return scope.DB().Create(&cl).Error
+}
+
+func getUserAndWhere(scope *gorm.Scope) (interface{}, interface{}) {
+	user, ok := scope.DB().Get("loggable:user")
+	if !ok {
+		user = ""
 	}
-	return nil
+	where, ok := scope.DB().Get("loggable:where")
+	if !ok {
+		where = ""
+	}
+	return user, where
 }
 
 func isLoggable(scope *gorm.Scope) (isLoggable bool) {
@@ -110,19 +119,27 @@ func isLoggable(scope *gorm.Scope) (isLoggable bool) {
 	return
 }
 
-func (r *loggablePlugin) addCreated(scope *gorm.Scope) {
+func (r *plugin) addCreated(scope *gorm.Scope) {
 	if isLoggable(scope) {
 		r.addRecord(scope, "create")
 	}
 }
 
-func (r *loggablePlugin) addUpdated(scope *gorm.Scope) {
+func (r *plugin) addUpdated(scope *gorm.Scope) {
 	if isLoggable(scope) {
+		if r.opts.lazyUpdate {
+			record, err := r.getLastRecord(scope.PrimaryKeyValue().(string))
+			if err == nil {
+				if isEqual(record.Object, scope.Value, r.opts.lazyUpdateFields...) {
+					return
+				}
+			}
+		}
 		r.addRecord(scope, "update")
 	}
 }
 
-func (r *loggablePlugin) addDeleted(scope *gorm.Scope) {
+func (r *plugin) addDeleted(scope *gorm.Scope) {
 	if isLoggable(scope) {
 		r.addRecord(scope, "delete")
 	}
