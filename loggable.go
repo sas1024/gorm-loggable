@@ -1,75 +1,74 @@
 package loggable
 
 import (
-	"bytes"
-	"database/sql/driver"
-	"errors"
+	"encoding/json"
+	"fmt"
+	"reflect"
 	"time"
+
+	"github.com/jinzhu/gorm"
 )
 
+// Interface is used to get metadata from your models.
+type Interface interface {
+	// Meta should return structure, that can be converted to json.
+	Meta() interface{}
+	// lock makes available only embedding structures.
+	lock()
+}
+
+// LoggableModel is a root structure, which implement Interface.
+// Embed LoggableModel to your model so that Plugin starts tracking changes.
+type LoggableModel struct{}
+
+func (LoggableModel) Meta() interface{} { return nil }
+func (LoggableModel) lock()             {}
+
+// ChangeLog is a main entity, which used to log changes.
 type ChangeLog struct {
-	ID           string    `gorm:"type:uuid;primary_key;"`
-	CreatedAt    time.Time `sql:"DEFAULT:current_timestamp"`
-	ChangedBy    string    `gorm:"index"`
-	ChangedWhere string    `gorm:"index"`
-	Action       string
-	ObjectID     string `gorm:"index"`
-	ObjectType   string `gorm:"index"`
-	Object       JSONB  `sql:"type:JSONB"`
+	ID         string    `gorm:"type:uuid;primary_key;"`
+	CreatedAt  time.Time `sql:"DEFAULT:current_timestamp"`
+	Action     string
+	ObjectID   string      `gorm:"index"`
+	ObjectType string      `gorm:"index"`
+	RawObject  JSONB       `sql:"type:JSONB"`
+	RawMeta    JSONB       `sql:"type:JSONB"`
+	Object     interface{} `sql:"-"`
+	Meta       interface{} `sql:"-"`
 }
 
-type loggableInterface interface {
-	stubMethod() error
+func (l *ChangeLog) prepareObject(objType reflect.Type) (err error) {
+	l.Object, err = l.RawObject.unmarshal(objType)
+	return
 }
 
-type LoggableModel struct {
+func (l *ChangeLog) prepareMeta(objType reflect.Type) (err error) {
+	l.Meta, err = l.RawMeta.unmarshal(objType)
+	return
 }
 
-func (model LoggableModel) stubMethod() error {
-	return nil
-}
-
-type JSONB []byte
-
-func (j JSONB) Value() (driver.Value, error) {
-	if j.IsNull() {
-		return nil, nil
+func interfaceToString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	default:
+		return fmt.Sprint(v)
 	}
-	return string(j), nil
 }
 
-func (j *JSONB) Scan(value interface{}) error {
-	if value == nil {
-		*j = nil
+func fetchChangeLogMeta(scope *gorm.Scope) JSONB {
+	val, ok := scope.Value.(Interface)
+	if !ok {
 		return nil
 	}
-	s, ok := value.([]byte)
-	if !ok {
-		return errors.New("Scan source was not string")
+	data, err := json.Marshal(val.Meta())
+	if err != nil {
+		panic(err)
 	}
-	*j = append((*j)[0:0], s...)
-	return nil
+	return data
 }
 
-func (j JSONB) MarshalJSON() ([]byte, error) {
-	if j == nil {
-		return []byte("null"), nil
-	}
-	return j, nil
-}
-
-func (j *JSONB) UnmarshalJSON(data []byte) error {
-	if j == nil {
-		return errors.New("json.RawMessage: UnmarshalJSON on nil pointer")
-	}
-	*j = append((*j)[0:0], data...)
-	return nil
-}
-
-func (j JSONB) IsNull() bool {
-	return len(j) == 0 || string(j) == "null"
-}
-
-func (j JSONB) Equals(j1 JSONB) bool {
-	return bytes.Equal([]byte(j), []byte(j1))
+func isLoggable(scope *gorm.Scope) bool {
+	_, ok := scope.Value.(Interface)
+	return ok
 }

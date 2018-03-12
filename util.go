@@ -51,15 +51,6 @@ func somethingToMapStringInterface(item interface{}) map[string]interface{} {
 	return nil
 }
 
-func isInStringSlice(what string, where []string) bool {
-	for i := range where {
-		if what == where[i] {
-			return true
-		}
-	}
-	return false
-}
-
 var ToSnakeCase = toSomeCase("_")
 
 func toSomeCase(sep string) func(string) string {
@@ -90,4 +81,13 @@ func StringMap(strs []string, fn func(string) string) []string {
 		res[i] = fn(strs[i])
 	}
 	return res
+}
+
+func isInStringSlice(what string, where []string) bool {
+	for i := range where {
+		if what == where[i] {
+			return true
+		}
+	}
+	return false
 }
