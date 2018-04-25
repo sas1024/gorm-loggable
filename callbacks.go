@@ -38,8 +38,12 @@ func addRecord(scope *gorm.Scope, action string) error {
 	if err != nil {
 		return err
 	}
+	id, err := uuid.NewV4()
+	if err != nil {
+		return err
+	}
 	cl := ChangeLog{
-		ID:         uuid.NewV4().String(),
+		ID:         id.String(),
 		Action:     action,
 		ObjectID:   interfaceToString(scope.PrimaryKeyValue()),
 		ObjectType: scope.GetModelStruct().ModelType.Name(),
