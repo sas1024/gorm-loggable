@@ -4,17 +4,17 @@ import (
 	"encoding/json"
 
 	"github.com/jinzhu/gorm"
-	"github.com/satori/go.uuid"
+	"github.com/gofrs/uuid"
 )
 
 func (p *Plugin) addCreated(scope *gorm.Scope) {
-	if isLoggable(scope) {
+	if isLoggable(scope) && isEnabled(scope) {
 		addRecord(scope, "create")
 	}
 }
 
 func (p *Plugin) addUpdated(scope *gorm.Scope) {
-	if isLoggable(scope) {
+	if isLoggable(scope) && isEnabled(scope) {
 		if p.opts.lazyUpdate {
 			record, err := p.GetLastRecord(interfaceToString(scope.PrimaryKeyValue()), false)
 			if err == nil {
@@ -28,7 +28,7 @@ func (p *Plugin) addUpdated(scope *gorm.Scope) {
 }
 
 func (p *Plugin) addDeleted(scope *gorm.Scope) {
-	if isLoggable(scope) {
+	if isLoggable(scope) && isEnabled(scope) {
 		addRecord(scope, "delete")
 	}
 }
