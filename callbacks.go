@@ -115,7 +115,7 @@ func isLoggable(scope *gorm.Scope) (isLoggable bool) {
 	if scope.GetModelStruct().ModelType == nil {
 		return false
 	}
-	_, isLoggable = reflect.New(scope.GetModelStruct().ModelType).Interface().(loggableInterface)
+	_, isLoggable = reflect.New(scope.GetModelStruct().ModelType).Interface().(LoggableInterface)
 	return
 }
 
@@ -123,7 +123,7 @@ func isEnabled(scope *gorm.Scope) (isEnabled bool) {
     if !isLoggable(scope) {
         return false
     }
-    return scope.Value.(loggableInterface).Enabled()
+    return scope.Value.(LoggableInterface).Enabled()
 }
 
 func (r *plugin) addCreated(scope *gorm.Scope) {
