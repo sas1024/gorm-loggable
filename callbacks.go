@@ -119,14 +119,21 @@ func isLoggable(scope *gorm.Scope) (isLoggable bool) {
 	return
 }
 
+func isEnabled(scope *gorm.Scope) (isEnabled bool) {
+    if !isLoggable(scope) {
+        return false
+    }
+    return scope.Value.(loggableInterface).Enabled()
+}
+
 func (r *plugin) addCreated(scope *gorm.Scope) {
-	if isLoggable(scope) {
+	if isLoggable(scope) && isEnabled(scope) {
 		r.addRecord(scope, "create")
 	}
 }
 
 func (r *plugin) addUpdated(scope *gorm.Scope) {
-	if isLoggable(scope) {
+	if isLoggable(scope) && isEnabled(scope) {
 		if r.opts.lazyUpdate {
 			record, err := r.getLastRecord(scope.PrimaryKeyValue().(string))
 			if err == nil {
@@ -140,7 +147,7 @@ func (r *plugin) addUpdated(scope *gorm.Scope) {
 }
 
 func (r *plugin) addDeleted(scope *gorm.Scope) {
-	if isLoggable(scope) {
+	if isLoggable(scope) && isEnabled(scope) {
 		r.addRecord(scope, "delete")
 	}
 }

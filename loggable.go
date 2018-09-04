@@ -19,14 +19,20 @@ type ChangeLog struct {
 }
 
 type loggableInterface interface {
-	stubMethod() error
+	SetEnabled(v bool)
+	Enabled() bool
 }
 
 type LoggableModel struct {
+    Disabled bool
 }
 
-func (model LoggableModel) stubMethod() error {
-	return nil
+func (m LoggableModel) SetEnabled(v bool) {
+	m.Disabled = !v
+}
+
+func (m LoggableModel) Enabled() bool {
+    return !m.Disabled
 }
 
 type JSONB []byte
