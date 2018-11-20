@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/jinzhu/gorm"
 )
 
@@ -34,24 +35,28 @@ func (l LoggableModel) Enable(v bool)   { l.Disabled = !v }
 
 // ChangeLog is a main entity, which used to log changes.
 type ChangeLog struct {
-	ID         string    `gorm:"type:uuid;primary_key;"`
+	ID         uuid.UUID `gorm:"primary_key;"`
 	CreatedAt  time.Time `sql:"DEFAULT:current_timestamp"`
 	Action     string
 	ObjectID   string      `gorm:"index"`
 	ObjectType string      `gorm:"index"`
-	RawObject  JSONB       `sql:"type:JSONB"`
-	RawMeta    JSONB       `sql:"type:JSONB"`
+	RawObject  string      `sql:"type:JSON"`
+	RawMeta    string      `sql:"type:JSON"`
 	Object     interface{} `sql:"-"`
 	Meta       interface{} `sql:"-"`
 }
 
 func (l *ChangeLog) prepareObject(objType reflect.Type) (err error) {
-	l.Object, err = l.RawObject.unmarshal(objType)
+	obj := reflect.New(objType).Interface()
+	err = json.Unmarshal([]byte(l.RawObject), obj)
+	l.Object = obj
 	return
 }
 
 func (l *ChangeLog) prepareMeta(objType reflect.Type) (err error) {
-	l.Meta, err = l.RawMeta.unmarshal(objType)
+	obj := reflect.New(objType).Interface()
+	err = json.Unmarshal([]byte(l.RawMeta), obj)
+	l.Meta = obj
 	return
 }
 
@@ -64,7 +69,7 @@ func interfaceToString(v interface{}) string {
 	}
 }
 
-func fetchChangeLogMeta(scope *gorm.Scope) JSONB {
+func fetchChangeLogMeta(scope *gorm.Scope) []byte {
 	val, ok := scope.Value.(Interface)
 	if !ok {
 		return nil

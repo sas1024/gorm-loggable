@@ -30,8 +30,6 @@ func somethingToMapStringInterface(item interface{}) map[string]interface{} {
 		return nil
 	}
 	switch raw := item.(type) {
-	case JSONB:
-		return somethingToMapStringInterface([]byte(raw))
 	case string:
 		return somethingToMapStringInterface([]byte(raw))
 	case []byte:

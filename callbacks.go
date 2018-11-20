@@ -3,8 +3,8 @@ package loggable
 import (
 	"encoding/json"
 
-	"github.com/jinzhu/gorm"
 	"github.com/gofrs/uuid"
+	"github.com/jinzhu/gorm"
 )
 
 func (p *Plugin) addCreated(scope *gorm.Scope) {
@@ -43,12 +43,12 @@ func addRecord(scope *gorm.Scope, action string) error {
 		return err
 	}
 	cl := ChangeLog{
-		ID:         id.String(),
+		ID:         id,
 		Action:     action,
 		ObjectID:   interfaceToString(scope.PrimaryKeyValue()),
 		ObjectType: scope.GetModelStruct().ModelType.Name(),
-		RawObject:  rawObject,
-		RawMeta:    fetchChangeLogMeta(scope),
+		RawObject:  string(rawObject),
+		RawMeta:    string(fetchChangeLogMeta(scope)),
 	}
 	return scope.DB().Create(&cl).Error
 }
