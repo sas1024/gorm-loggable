@@ -1,6 +1,8 @@
 package loggable
 
-import "reflect"
+import (
+	"reflect"
+)
 
 type Option func(options *options)
 
@@ -9,6 +11,13 @@ type options struct {
 	lazyUpdateFields []string
 	metaTypes        map[string]reflect.Type
 	objectTypes      map[string]reflect.Type
+	computeDiff      bool
+}
+
+func ComputeDiff() Option {
+	return func(options *options) {
+		options.computeDiff = true
+	}
 }
 
 func LazyUpdate(fields ...string) Option {
