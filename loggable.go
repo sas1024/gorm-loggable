@@ -42,7 +42,7 @@ type ChangeLog struct {
 	ObjectType string      `gorm:"index"`
 	RawObject  string      `sql:"type:JSON"`
 	RawMeta    string      `sql:"type:JSON"`
-	RawDiff    string      `sql:"type:JSONB"`
+	RawDiff    string      `sql:"type:JSON"`
 	CreatedBy  string      `gorm:"index"`
 	Object     interface{} `sql:"-"`
 	Meta       interface{} `sql:"-"`
