@@ -42,6 +42,8 @@ type ChangeLog struct {
 	ObjectType string      `gorm:"index"`
 	RawObject  string      `sql:"type:JSON"`
 	RawMeta    string      `sql:"type:JSON"`
+	RawDiff    string      `sql:"type:JSON"`
+	CreatedBy  string      `gorm:"index"`
 	Object     interface{} `sql:"-"`
 	Meta       interface{} `sql:"-"`
 }
@@ -58,6 +60,16 @@ func (l *ChangeLog) prepareMeta(objType reflect.Type) (err error) {
 	err = json.Unmarshal([]byte(l.RawMeta), obj)
 	l.Meta = obj
 	return
+}
+
+func (l ChangeLog) Diff() (UpdateDiff, error) {
+	var diff UpdateDiff
+	err := json.Unmarshal([]byte(l.RawDiff), &diff)
+	if err != nil {
+		return nil, err
+	}
+
+	return diff, nil
 }
 
 func interfaceToString(v interface{}) string {
@@ -81,12 +93,12 @@ func fetchChangeLogMeta(scope *gorm.Scope) []byte {
 	return data
 }
 
-func isLoggable(scope *gorm.Scope) bool {
-	_, ok := scope.Value.(Interface)
+func isLoggable(value interface{}) bool {
+	_, ok := value.(Interface)
 	return ok
 }
 
-func isEnabled(scope *gorm.Scope) bool {
-	v, ok := scope.Value.(Interface)
+func isEnabled(value interface{}) bool {
+	v, ok := value.(Interface)
 	return ok && v.isEnabled()
 }

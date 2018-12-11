@@ -61,3 +61,27 @@ func (m CreatedByLog) Meta() interface{} {
 #### LazyUpdate
 Option `LazyUpdate` allows save changes only if they big enough to be saved.  
 Plugin compares the last saved object and the new one, but ignores changes was made in fields from provided list.
+
+#### ComputeDiff
+Option `ComputeDiff` allows to only save the changes into the RawDiff field. This options is only relevant during update
+operations. Only fields tagged with `gorm-loggable:true` will be taken in account. If the object does not have any field
+tagged with `gorm-loggable:true` then the column will always be `NULL`.
+
+e.g.
+
+```go
+type Person struct {
+	FirstName string `gorm-loggable:true`
+	LastName  string `gorm-loggable:true`
+	Age       int    `gorm-loggable:true`
+}
+```
+
+Let's say you change person `FirstName` from `John` to `Jack` and its `Age` from 30 to 40.
+`ChangeLog.RawDiff` will be populated with the following:
+```json
+{
+  "FirstName": "Jack",
+  "Age": 40,
+}
+```

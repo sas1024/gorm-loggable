@@ -7,6 +7,8 @@ import (
 	"unicode"
 )
 
+const loggableTag = "gorm-loggable"
+
 func isEqual(item1, item2 interface{}, except ...string) bool {
 	except = StringMap(except, ToSnakeCase)
 	m1, m2 := somethingToMapStringInterface(item1), somethingToMapStringInterface(item2)
@@ -88,4 +90,21 @@ func isInStringSlice(what string, where []string) bool {
 		}
 	}
 	return false
+}
+
+func getLoggableFieldNames(value interface{}) []string {
+	var names []string
+
+	t := reflect.TypeOf(value)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		value, ok := field.Tag.Lookup(loggableTag)
+		if !ok || value != "true" {
+			continue
+		}
+
+		names = append(names, field.Name)
+	}
+
+	return names
 }
