@@ -78,14 +78,19 @@ func addUpdateRecord(scope *gorm.Scope, opts options) error {
 		return err
 	}
 
+	cl.RawDiff = "null"
+
 	if opts.computeDiff {
 		diff := computeUpdateDiff(scope)
-		jd, err := json.Marshal(diff)
-		if err != nil {
-			return err
-		}
 
-		cl.RawDiff = string(jd)
+		if diff != nil {
+			jd, err := json.Marshal(diff)
+			if err != nil {
+				return err
+			}
+
+			cl.RawDiff = string(jd)
+		}
 	}
 
 	return scope.DB().Create(cl).Error
@@ -108,6 +113,7 @@ func newChangeLog(scope *gorm.Scope, action string) (*ChangeLog, error) {
 		ObjectType: scope.GetModelStruct().ModelType.Name(),
 		RawObject:  string(rawObject),
 		RawMeta:    string(fetchChangeLogMeta(scope)),
+		RawDiff:    "null",
 	}, nil
 }
 
