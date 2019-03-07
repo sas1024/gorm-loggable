@@ -19,6 +19,10 @@ const (
 type UpdateDiff map[string]interface{}
 
 func (p *Plugin) trackEntity(scope *gorm.Scope) {
+	if !isLoggable(scope.Value) || !isEnabled(scope.Value) {
+		return
+	}
+
 	v := reflect.Indirect(reflect.ValueOf(scope.Value))
 
 	pkName := scope.PrimaryField().Name
