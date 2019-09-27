@@ -2,6 +2,7 @@ package loggable
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -56,7 +57,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	db = database
-	m.Run()
+	os.Exit(m.Run())
 }
 
 func TestTryModel(t *testing.T) {

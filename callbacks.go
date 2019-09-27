@@ -18,6 +18,7 @@ const (
 
 type UpdateDiff map[string]interface{}
 
+// Hook for after_query.
 func (p *Plugin) trackEntity(scope *gorm.Scope) {
 	if !isLoggable(scope.Value) || !isEnabled(scope.Value) {
 		return
@@ -47,12 +48,14 @@ func (p *Plugin) trackEntity(scope *gorm.Scope) {
 	im.save(scope.Value, scope.PrimaryKeyValue())
 }
 
+// Hook for after_create.
 func (p *Plugin) addCreated(scope *gorm.Scope) {
 	if isLoggable(scope.Value) && isEnabled(scope.Value) {
-		addRecord(scope, actionCreate)
+		_ = addRecord(scope, actionCreate)
 	}
 }
 
+// Hook for after_update.
 func (p *Plugin) addUpdated(scope *gorm.Scope) {
 	if !isLoggable(scope.Value) || !isEnabled(scope.Value) {
 		return
@@ -67,12 +70,13 @@ func (p *Plugin) addUpdated(scope *gorm.Scope) {
 		}
 	}
 
-	addUpdateRecord(scope, p.opts)
+	_ = addUpdateRecord(scope, p.opts)
 }
 
+// Hook for after_delete.
 func (p *Plugin) addDeleted(scope *gorm.Scope) {
 	if isLoggable(scope.Value) && isEnabled(scope.Value) {
-		addRecord(scope, actionDelete)
+		_ = addRecord(scope, actionDelete)
 	}
 }
 
@@ -81,8 +85,6 @@ func addUpdateRecord(scope *gorm.Scope, opts options) error {
 	if err != nil {
 		return err
 	}
-
-	cl.RawDiff = "null"
 
 	if opts.computeDiff {
 		diff := computeUpdateDiff(scope)
@@ -121,6 +123,7 @@ func newChangeLog(scope *gorm.Scope, action string) (*ChangeLog, error) {
 	}, nil
 }
 
+// Writes new change log row to db.
 func addRecord(scope *gorm.Scope, action string) error {
 	cl, err := newChangeLog(scope, action)
 	if err != nil {
