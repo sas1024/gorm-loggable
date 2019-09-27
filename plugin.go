@@ -4,11 +4,15 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
+// Plugin is a hook for gorm.
 type Plugin struct {
 	db   *gorm.DB
 	opts options
 }
 
+// Register initializes Plugin for provided gorm.DB.
+// There is also available some options, that should be passed there.
+// Options cannot be set after initialization.
 func Register(db *gorm.DB, opts ...Option) (Plugin, error) {
 	err := db.AutoMigrate(&ChangeLog{}).Error
 	if err != nil {
@@ -27,6 +31,8 @@ func Register(db *gorm.DB, opts ...Option) (Plugin, error) {
 	return p, nil
 }
 
+// GetRecords returns all records by objectId.
+// Flag prepare allows to decode content of Raw* fields to direct fields, e.g. RawObject to Object.
 func (p *Plugin) GetRecords(objectId string, prepare bool) (changes []ChangeLog, err error) {
 	defer func() {
 		if prepare {
@@ -49,6 +55,8 @@ func (p *Plugin) GetRecords(objectId string, prepare bool) (changes []ChangeLog,
 	return changes, p.db.Where("object_id = ?", objectId).Find(&changes).Error
 }
 
+// GetLastRecord returns last by creation time (CreatedAt field) change log by provided object id.
+// Flag prepare allows to decode content of Raw* fields to direct fields, e.g. RawObject to Object.
 func (p *Plugin) GetLastRecord(objectId string, prepare bool) (change ChangeLog, err error) {
 	defer func() {
 		if prepare {
