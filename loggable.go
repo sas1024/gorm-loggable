@@ -25,7 +25,7 @@ type Interface interface {
 // LoggableModel is a root structure, which implement Interface.
 // Embed LoggableModel to your model so that Plugin starts tracking changes.
 type LoggableModel struct {
-	Disabled bool `sql:"-"`
+	Disabled bool `sql:"-" json:"-"`
 }
 
 func (LoggableModel) Meta() interface{} { return nil }
